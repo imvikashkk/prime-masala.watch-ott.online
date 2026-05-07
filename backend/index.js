@@ -81,9 +81,25 @@ app.post('/start-session', async (req, res) => {
     return res.json({ status: 'success', fbclid, token });
   } catch (error) {
     if (error.code === '23505') {
+      // Already exists — pending hai to purana token wapas bhej do
+      const existing = await pool.query(
+        'SELECT fbclid, token, status FROM sessions WHERE fbclid = $1',
+        [fbclid],
+      );
+      const row = existing.rows[0];
+
+      if (row.status === 'pending') {
+        return res.json({
+          status: 'success',
+          fbclid: row.fbclid,
+          token: row.token,
+        });
+      }
+
+      // Already done hai
       return res
         .status(409)
-        .json({ status: 'error', message: 'Session already exists' });
+        .json({ status: 'error', message: 'Already processed' });
     }
     return res
       .status(500)
