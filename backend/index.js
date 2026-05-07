@@ -55,10 +55,10 @@ app.get('/health', async (req, res) => {
 });
 
 // Single token — no public/private split
-function generateToken(sessionId) {
+function generateToken(sessionid) {
   const secret = process.env.TOKEN_SECRET;
   if (!secret) throw new Error('TOKEN_SECRET missing in environment');
-  return crypto.createHmac('sha256', secret).update(sessionId).digest('hex');
+  return crypto.createHmac('sha256', secret).update(sessionid).digest('hex');
 }
 
 // ─────────────────────────────────────────────
@@ -66,27 +66,27 @@ function generateToken(sessionId) {
 //  Creates session, returns token to frontend
 // ─────────────────────────────────────────────
 app.post('/start-session', async (req, res) => {
-  const { fbclid, sessionId } = req.body;
+  const { fbclid, sessionid } = req.body;
 
-  if (!fbclid || !sessionId) {
+  if (!fbclid || !sessionid) {
     return res.status(400).json({
       status: 'error',
-      message: 'fbclid and sessionId are required',
+      message: 'fbclid and sessionid are required',
     });
   }
 
   try {
-    const token = generateToken(sessionId);
+    const token = generateToken(sessionid);
 
     await pool.query(
       'INSERT INTO sessions (session_id, fbclid, status, token) VALUES ($1, $2, $3, $4)',
-      [sessionId, fbclid, 'pending', token],
+      [sessionid, fbclid, 'pending', token],
     );
 
     return res.json({
       status: 'success',
       message: 'Session created',
-      sessionId,
+      sessionid,
       token,
     });
   } catch (error) {
@@ -108,18 +108,18 @@ app.post('/start-session', async (req, res) => {
 //  POST /success-session
 //  Validates token, fires Meta CAPI event
 //
-//  Body: { sessionId, token }
+//  Body: { sessionid, token }
 //  CAPI payload is built entirely server-side
 // ─────────────────────────────────────────────
 app.post('/success-session', async (req, res) => {
-  const { sessionId, token, price } = req.body;
+  const { sessionid, token, price } = req.body;
   const client = await pool.connect();
 
   try {
-    if (!sessionId || !token) {
+    if (!sessionid || !token) {
       return res.status(400).json({
         status: 'error',
-        message: 'sessionId and token required',
+        message: 'sessionid and token required',
       });
     }
 
@@ -127,7 +127,7 @@ app.post('/success-session', async (req, res) => {
 
     const sessionResult = await client.query(
       'SELECT * FROM sessions WHERE session_id = $1 FOR UPDATE',
-      [sessionId],
+      [sessionid],
     );
 
     if (sessionResult.rows.length === 0) {
@@ -149,7 +149,7 @@ app.post('/success-session', async (req, res) => {
     }
 
     // Token verify — single token, single check
-    const expectedToken = generateToken(sessionId);
+    const expectedToken = generateToken(sessionid);
     if (token !== session.token || token !== expectedToken) {
       await client.query('ROLLBACK');
       return res.status(400).json({
@@ -164,7 +164,7 @@ app.post('/success-session', async (req, res) => {
            price = $3
        WHERE session_id = $2
        RETURNING *`,
-      ['done', sessionId, price || null],
+      ['done', sessionid, price || null],
     );
 
     const updatedSession = updateResult.rows[0];
