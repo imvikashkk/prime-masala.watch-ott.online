@@ -72,6 +72,7 @@ const AppHeader = () => {
       // window.location.href = REDIRECT_BASE;
       // return;
       alert('Invalid access');
+      setLoading(false);
       return;
     }
 
