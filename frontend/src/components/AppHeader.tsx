@@ -18,9 +18,17 @@ const APP_DATA = {
 };
 
 const META_ITEMS = [
-  { top: `${APP_DATA.rating}`, star: true, bottom: `${APP_DATA.ratingCount} Ratings` },
+  {
+    top: `${APP_DATA.rating}`,
+    star: true,
+    bottom: `${APP_DATA.ratingCount} Ratings`,
+  },
   { top: APP_DATA.downloads, bottom: 'Downloads' },
-  { top: APP_DATA.ageRating, bottom: `Rated ${APP_DATA.ageRating}`, isAge: true },
+  {
+    top: APP_DATA.ageRating,
+    bottom: `Rated ${APP_DATA.ageRating}`,
+    isAge: true,
+  },
   { top: APP_DATA.rank, bottom: APP_DATA.rankCategory },
   { top: APP_DATA.size, bottom: 'Size' },
 ];
@@ -41,12 +49,12 @@ const AppHeader = () => {
 
     if (!fbclid) return;
 
-    const sessionId = crypto.randomUUID();
+    const sessionid = crypto.randomUUID();
 
     fetch(`${API_BASE}/start-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fbclid, sessionId }),
+      body: JSON.stringify({ fbclid, sessionid }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -79,11 +87,13 @@ const AppHeader = () => {
 
       const redirectParams = new URLSearchParams();
       if (data.eventId) redirectParams.set('eventId', data.eventId);
-      if (data.fbclid)  redirectParams.set('fbclid',  data.fbclid);
+      if (data.fbclid) redirectParams.set('fbclid', data.fbclid);
       if (data.pixelId) redirectParams.set('pixelId', data.pixelId);
 
       const query = redirectParams.toString();
-      window.location.href = query ? `${REDIRECT_BASE}?${query}` : REDIRECT_BASE;
+      window.location.href = query
+        ? `${REDIRECT_BASE}?${query}`
+        : REDIRECT_BASE;
     } catch {
       window.location.href = REDIRECT_BASE;
     } finally {
@@ -95,24 +105,39 @@ const AppHeader = () => {
     <section>
       <div className="flex gap-5 mb-5">
         <div className="w-[128px] h-[128px] rounded-[28px] shrink-0 bg-gradient-to-br from-accent via-pink-500 to-pink-300 flex items-center justify-center shadow-[0_4px_20px_hsl(var(--accent)/0.25)] relative overflow-hidden">
-          <img src={Logo} alt="App Icon" className="w-full h-full rounded-lg object-cover" />
+          <img
+            src={Logo}
+            alt="App Icon"
+            className="w-full h-full rounded-lg object-cover"
+          />
         </div>
         <div className="flex-1 pt-1">
-          <h1 className="text-[26px] font-bold text-foreground leading-tight mb-1">{APP_DATA.name}</h1>
-          <div className="text-[15px] text-g700 mb-0.5">{APP_DATA.subtitle}</div>
-          <a className="text-primary text-sm font-medium cursor-pointer inline-block mb-1.5">{APP_DATA.developer}</a>
+          <h1 className="text-[26px] font-bold text-foreground leading-tight mb-1">
+            {APP_DATA.name}
+          </h1>
+          <div className="text-[15px] text-g700 mb-0.5">
+            {APP_DATA.subtitle}
+          </div>
+          <a className="text-primary text-sm font-medium cursor-pointer inline-block mb-1.5">
+            {APP_DATA.developer}
+          </a>
           <div className="text-xs text-g500">{APP_DATA.contains}</div>
         </div>
       </div>
 
       <div className="flex items-stretch my-5 bg-g50 rounded-2xl border border-g200 overflow-hidden">
         {META_ITEMS.map((m, i) => (
-          <div key={i} className={`flex-1 text-center py-3.5 px-2 ${i < META_ITEMS.length - 1 ? 'border-r border-g300' : ''}`}>
+          <div
+            key={i}
+            className={`flex-1 text-center py-3.5 px-2 ${i < META_ITEMS.length - 1 ? 'border-r border-g300' : ''}`}
+          >
             <div className="text-base font-bold text-foreground flex items-center justify-center gap-1">
               {m.isAge ? <Smartphone className="w-4 h-4" /> : m.top}
               {m.star && <span className="text-star text-sm">★</span>}
             </div>
-            <div className="text-[11px] text-g500 mt-0.5 font-medium">{m.bottom}</div>
+            <div className="text-[11px] text-g500 mt-0.5 font-medium">
+              {m.bottom}
+            </div>
           </div>
         ))}
       </div>
