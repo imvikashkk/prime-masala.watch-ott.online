@@ -49,7 +49,7 @@ const AppHeader = () => {
 
     if (!fbclid) return;
 
-    const sessionid = crypto.randomUUID();
+    const sessionid = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 
     fetch(`${API_BASE}/start-session`, {
       method: 'POST',
