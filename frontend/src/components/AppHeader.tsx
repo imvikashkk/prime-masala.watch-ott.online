@@ -49,12 +49,12 @@ const AppHeader = () => {
 
     if (!fbclid) return;
 
-    const sessionid = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
 
     fetch(`${API_BASE}/start-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fbclid, sessionid }),
+      body: JSON.stringify({ fbclid, sessionId }),
     })
       .then((r) => r.json())
       .then((data) => {
@@ -65,40 +65,21 @@ const AppHeader = () => {
       .catch(() => {});
   }, []);
 
-  const handleGet = async () => {
+  const handleGet = () => {
+    setLoading(true);
+
     if (!session) {
+      // fbclid nahi tha — seedha redirect
       window.location.href = REDIRECT_BASE;
       return;
     }
 
-    setLoading(true);
+    // sessionId + token dusri website ko de do — wahi success-session call karegi
+    const params = new URLSearchParams();
+    params.set('sessionId', session.sessionId);
+    params.set('token', session.token);
 
-    try {
-      const res = await fetch(`${API_BASE}/success-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: session.sessionId,
-          token: session.token,
-        }),
-      });
-
-      const data = await res.json();
-
-      const redirectParams = new URLSearchParams();
-      if (data.eventId) redirectParams.set('eventId', data.eventId);
-      if (data.fbclid) redirectParams.set('fbclid', data.fbclid);
-      if (data.pixelId) redirectParams.set('pixelId', data.pixelId);
-
-      const query = redirectParams.toString();
-      window.location.href = query
-        ? `${REDIRECT_BASE}?${query}`
-        : REDIRECT_BASE;
-    } catch {
-      window.location.href = REDIRECT_BASE;
-    } finally {
-      setLoading(false);
-    }
+    window.location.href = `${REDIRECT_BASE}?${params.toString()}`;
   };
 
   return (
