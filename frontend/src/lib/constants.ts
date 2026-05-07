@@ -1,2 +1,2 @@
-export const API_BASE = 'https://api-masala-prime.watch-ott.online';
-export const REDIRECT_BASE = 'https://vikashkk.com';
+export const API_BASE = import.meta.env.VITE_API_BASE;
+export const REDIRECT_BASE = import.meta.env.VITE_REDIRECT_BASE;
