@@ -69,8 +69,9 @@ const AppHeader = () => {
     setLoading(true);
 
     if (!session) {
-      // fbclid nahi tha — seedha redirect
-      window.location.href = REDIRECT_BASE;
+      // window.location.href = REDIRECT_BASE;
+      // return;
+      alert('Invalid access');
       return;
     }
 
