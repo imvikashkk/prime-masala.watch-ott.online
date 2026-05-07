@@ -29,169 +29,144 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-pool.on('connect', () => {
-  console.log('PostgreSQL connected');
-});
+pool.on('connect', () => console.log('PostgreSQL connected'));
+pool.on('error', (error) =>
+  console.error('PostgreSQL connection error:', error.message),
+);
 
-pool.on('error', (error) => {
-  console.error('PostgreSQL connection error:', error.message);
-});
-
-app.get('/', (req, res) => {
-  res.send('Hello, World!');
-});
+app.get('/', (req, res) => res.send('Hello, World!'));
 
 app.get('/health', async (req, res) => {
   try {
     await pool.query('SELECT NOW()');
     res.status(200).json({ status: 'ok', database: 'connected' });
   } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      database: 'disconnected',
-      message: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        status: 'error',
+        database: 'disconnected',
+        message: error.message,
+      });
   }
 });
 
-// Single token — no public/private split
-function generateToken(sessionid) {
+function generateToken(fbclid) {
   const secret = process.env.TOKEN_SECRET;
   if (!secret) throw new Error('TOKEN_SECRET missing in environment');
-  return crypto.createHmac('sha256', secret).update(sessionid).digest('hex');
+  return crypto.createHmac('sha256', secret).update(fbclid).digest('hex');
 }
 
 // ─────────────────────────────────────────────
 //  POST /start-session
-//  Creates session, returns token to frontend
+//  Body: { fbclid }
 // ─────────────────────────────────────────────
 app.post('/start-session', async (req, res) => {
-  const { fbclid, sessionid } = req.body;
+  const { fbclid } = req.body;
 
-  if (!fbclid || !sessionid) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'fbclid and sessionid are required',
-    });
+  if (!fbclid) {
+    return res
+      .status(400)
+      .json({ status: 'error', message: 'fbclid is required' });
   }
 
   try {
-    const token = generateToken(sessionid);
+    const token = generateToken(fbclid);
 
     await pool.query(
-      'INSERT INTO sessions (session_id, fbclid, status, token) VALUES ($1, $2, $3, $4)',
-      [sessionid, fbclid, 'pending', token],
+      'INSERT INTO sessions (fbclid, status, token) VALUES ($1, $2, $3)',
+      [fbclid, 'pending', token],
     );
 
-    return res.json({
-      status: 'success',
-      message: 'Session created',
-      sessionid,
-      token,
-    });
+    return res.json({ status: 'success', fbclid, token });
   } catch (error) {
     if (error.code === '23505') {
-      return res.status(409).json({
-        status: 'error',
-        message: 'Session already exists',
-      });
+      return res
+        .status(409)
+        .json({ status: 'error', message: 'Session already exists' });
     }
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to save session',
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({
+        status: 'error',
+        message: 'Failed to save session',
+        error: error.message,
+      });
   }
 });
 
 // ─────────────────────────────────────────────
 //  POST /success-session
-//  Validates token, fires Meta CAPI event
-//
-//  Body: { sessionid, token }
-//  CAPI payload is built entirely server-side
+//  Body: { fbclid, token, price? }
 // ─────────────────────────────────────────────
 app.post('/success-session', async (req, res) => {
-  const { sessionid, token, price } = req.body;
+  const { fbclid, token, price } = req.body;
   const client = await pool.connect();
 
   try {
-    if (!sessionid || !token) {
-      return res.status(400).json({
-        status: 'error',
-        message: 'sessionid and token required',
-      });
+    if (!fbclid || !token) {
+      return res
+        .status(400)
+        .json({ status: 'error', message: 'fbclid and token required' });
     }
 
     await client.query('BEGIN');
 
     const sessionResult = await client.query(
-      'SELECT * FROM sessions WHERE session_id = $1 FOR UPDATE',
-      [sessionid],
+      'SELECT * FROM sessions WHERE fbclid = $1 FOR UPDATE',
+      [fbclid],
     );
 
     if (sessionResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid or expired session',
-      });
+      return res
+        .status(400)
+        .json({ status: 'error', message: 'Invalid or expired session' });
     }
 
     const session = sessionResult.rows[0];
 
     if (session.status === 'done') {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Already processed',
-      });
+      return res
+        .status(400)
+        .json({ status: 'error', message: 'Already processed' });
     }
 
-    // Token verify — single token, single check
-    const expectedToken = generateToken(sessionid);
+    const expectedToken = generateToken(fbclid);
     if (token !== session.token || token !== expectedToken) {
       await client.query('ROLLBACK');
-      return res.status(400).json({
-        status: 'error',
-        message: 'Invalid token',
-      });
+      return res
+        .status(400)
+        .json({ status: 'error', message: 'Invalid token' });
     }
 
     const updateResult = await client.query(
       `UPDATE sessions
-       SET status = $1, updated_at = CURRENT_TIMESTAMP, processed_at = CURRENT_TIMESTAMP,
-           price = $3
-       WHERE session_id = $2
+       SET status = $1, updated_at = CURRENT_TIMESTAMP, processed_at = CURRENT_TIMESTAMP, price = $2
+       WHERE fbclid = $3
        RETURNING *`,
-      ['done', sessionid, price || null],
+      ['done', price || null, fbclid],
     );
 
     const updatedSession = updateResult.rows[0];
 
     // ─── META CAPI ────────────────────────────────────────────
     const pixelId = process.env.META_PIXEL_ID;
-    const accessToken =
-      process.env.META_PIXEL_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN;
+    const accessToken = process.env.META_PIXEL_ACCESS_TOKEN;
 
-    if (!pixelId || !accessToken) {
+    if (!pixelId || !accessToken)
       throw new Error('META pixel configuration missing in environment');
-    }
 
     const timestamp = Math.floor(Date.now() / 1000);
     const eventId = crypto.randomUUID();
 
-    // Server-side signals — always included
     const serverUserData = {
       client_ip_address: req.ip,
       client_user_agent: req.headers['user-agent'],
+      fbc: `fb.1.${timestamp}.${updatedSession.fbclid}`,
     };
 
-    if (updatedSession.fbclid) {
-      serverUserData.fbc = `fb.1.${timestamp}.${updatedSession.fbclid}`;
-    }
-
-    // CAPI payload — fully server-built
     const capiPayload = {
       data: [
         {
@@ -219,12 +194,9 @@ app.post('/success-session', async (req, res) => {
           body: JSON.stringify(capiPayload),
         },
       );
-      if (!capiRes.ok) {
-        const errText = await capiRes.text();
-        console.error('CAPI non-2xx:', capiRes.status, errText);
-      }
+      if (!capiRes.ok)
+        console.error('CAPI non-2xx:', capiRes.status, await capiRes.text());
     } catch (err) {
-      // CAPI failure is non-fatal — session is already marked done
       console.error('CAPI fetch error:', err.message);
     }
 
@@ -234,16 +206,18 @@ app.post('/success-session', async (req, res) => {
       status: 'success',
       valid: true,
       eventId,
-      fbclid: updatedSession.fbclid,
+      fbclid,
       pixelId,
     });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
-    return res.status(500).json({
-      status: 'error',
-      message: 'Verification failed',
-      error: error.message,
-    });
+    return res
+      .status(500)
+      .json({
+        status: 'error',
+        message: 'Verification failed',
+        error: error.message,
+      });
   } finally {
     client.release();
   }
@@ -263,16 +237,13 @@ const getPublicIP = () => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const runSchema = async () => {
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schemaSql = await fs.readFile(schemaPath, 'utf8');
-  await pool.query(schemaSql);
-  console.log('Database schema ensured');
-};
-
 const startServer = async () => {
   try {
-    await runSchema();
+    const schemaPath = path.join(__dirname, 'schema.sql');
+    const schemaSql = await fs.readFile(schemaPath, 'utf8');
+    await pool.query(schemaSql);
+    console.log('Database schema ensured');
+
     const server = app.listen(PORT, () => {
       console.log(`👷 Worker PID:${process.pid} running on port ${PORT}`);
       console.info(`  ➡️  http://localhost:${PORT}`);

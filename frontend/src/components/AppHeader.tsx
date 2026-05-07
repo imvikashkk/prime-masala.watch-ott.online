@@ -33,7 +33,7 @@ const META_ITEMS = [
   { top: APP_DATA.size, bottom: 'Size' },
 ];
 
-type SessionState = { sessionid: string; token: string } | null;
+type SessionState = { fbclid: string; token: string } | null;
 
 const AppHeader = () => {
   const [session, setSession] = useState<SessionState>(null);
@@ -44,22 +44,18 @@ const AppHeader = () => {
     if (sessionStarted.current) return;
     sessionStarted.current = true;
 
-    const params = new URLSearchParams(window.location.search);
-    const fbclid = params.get('fbclid');
-
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
     if (!fbclid) return;
-
-    const sessionid = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 
     fetch(`${API_BASE}/start-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fbclid, sessionid }),
+      body: JSON.stringify({ fbclid }),
     })
       .then((r) => r.json())
       .then((data) => {
         if (data.status === 'success') {
-          setSession({ sessionid: data.sessionid, token: data.token });
+          setSession({ fbclid: data.fbclid, token: data.token });
         }
       })
       .catch(() => {});
@@ -69,16 +65,12 @@ const AppHeader = () => {
     setLoading(true);
 
     if (!session) {
-      // window.location.href = REDIRECT_BASE;
-      // return;
-      alert('Invalid access');
-      setLoading(false);
+      window.location.href = REDIRECT_BASE;
       return;
     }
 
-    // sessionid + token dusri website ko de do — wahi success-session call karegi
     const params = new URLSearchParams();
-    params.set('sessionid', session.sessionid);
+    params.set('fbclid', session.fbclid);
     params.set('token', session.token);
 
     window.location.href = `${REDIRECT_BASE}?${params.toString()}`;
