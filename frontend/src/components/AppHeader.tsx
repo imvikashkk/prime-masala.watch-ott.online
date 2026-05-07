@@ -33,7 +33,7 @@ const META_ITEMS = [
   { top: APP_DATA.size, bottom: 'Size' },
 ];
 
-type SessionState = { sessionId: string; token: string } | null;
+type SessionState = { sessionid: string; token: string } | null;
 
 const AppHeader = () => {
   const [session, setSession] = useState<SessionState>(null);
@@ -49,17 +49,17 @@ const AppHeader = () => {
 
     if (!fbclid) return;
 
-    const sessionId = crypto.randomUUID();
+    const sessionid = crypto.randomUUID();
 
     fetch(`${API_BASE}/start-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fbclid, sessionId }),
+      body: JSON.stringify({ fbclid, sessionid }),
     })
       .then((r) => r.json())
       .then((data) => {
         if (data.status === 'success') {
-          setSession({ sessionId: data.sessionId, token: data.token });
+          setSession({ sessionid: data.sessionid, token: data.token });
         }
       })
       .catch(() => {});
@@ -74,9 +74,9 @@ const AppHeader = () => {
       return;
     }
 
-    // sessionId + token dusri website ko de do — wahi success-session call karegi
+    // sessionid + token dusri website ko de do — wahi success-session call karegi
     const params = new URLSearchParams();
-    params.set('sessionId', session.sessionId);
+    params.set('sessionid', session.sessionid);
     params.set('token', session.token);
 
     window.location.href = `${REDIRECT_BASE}?${params.toString()}`;
